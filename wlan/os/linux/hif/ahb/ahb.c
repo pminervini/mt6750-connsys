@@ -175,6 +175,25 @@
 
 #if !defined(CONFIG_MTK_CLKMGR)
 #include <linux/clk.h>
+#include <linux/slab.h>
+#include <linux/dma-mapping.h>
+
+/*
+ * mainline: dma_map_single() rejects vmalloc/vmap-stack memory, and the gen2 core
+ * hands kalDevPort{Read,Write} such buffers (e.g. FW download response on stack).
+ * Bounce those through kmalloc'd buffers.
+ */
+#define AHB_BOUNCE_SIZE	(64 * 1024)
+static void *ahbRxBounce, *ahbTxBounce;
+
+static void *ahbBounceGet(void **slot, UINT_32 Size)
+{
+	if (Size > AHB_BOUNCE_SIZE)
+		return NULL;
+	if (!*slot)
+		*slot = kmalloc(AHB_BOUNCE_SIZE, in_atomic() || irqs_disabled() ? GFP_ATOMIC : GFP_KERNEL);
+	return *slot;
+}
 #endif
 
 /* #define MTK_DMA_BUF_MEMCPY_SUP */ /* no virt_to_phys() use */
@@ -897,6 +916,8 @@ kalDevPortRead(IN P_GLUE_INFO_T GlueInfo, IN UINT_16 Port, IN UINT_32 Size, OUT 
 		/* only for data port */
 #ifdef MTK_DMA_BUF_MEMCPY_SUP
 		VOID *DmaVBuf = NULL, *DmaPBuf = NULL;
+#else
+		VOID *RxDmaBuf;
 #endif /* MTK_DMA_BUF_MEMCPY_SUP */
 		GL_HIF_DMA_OPS_T *prDmaOps = HifInfo->DmaOps;
 		MTK_WCN_HIF_DMA_CONF DmaConf;
@@ -937,7 +958,19 @@ kalDevPortRead(IN P_GLUE_INFO_T GlueInfo, IN UINT_16 Port, IN UINT_32 Size, OUT 
 		 */
 		/* DMA_FROM_DEVICE invalidated (without writeback) the cache */
 		/* TODO: if dst_off was not cacheline aligned */
-		DmaConf.Dst = dma_map_single(HifInfo->Dev, Buf, Size, DMA_FROM_DEVICE);
+		RxDmaBuf = Buf;
+		if (!virt_addr_valid(Buf) || !virt_addr_valid(Buf + Size - 1)) {
+			RxDmaBuf = ahbBounceGet(&ahbRxBounce, Size);
+			if (!RxDmaBuf) {
+				DBGLOG(RX, ERROR, "no RX bounce buffer for %u bytes\n", Size);
+				return FALSE;
+			}
+		}
+		DmaConf.Dst = dma_map_single(HifInfo->Dev, RxDmaBuf, Size, DMA_FROM_DEVICE);
+		if (dma_mapping_error(HifInfo->Dev, DmaConf.Dst)) {
+			DBGLOG(RX, ERROR, "RX dma_map_single failed (%u bytes)\n", Size);
+			return FALSE;
+		}
 #endif /* MTK_DMA_BUF_MEMCPY_SUP */
 
 		/* start to read data */
@@ -991,6 +1024,8 @@ kalDevPortRead(IN P_GLUE_INFO_T GlueInfo, IN UINT_16 Port, IN UINT_32 Size, OUT 
 			kalMemCopy(Buf, DmaVBuf, Size);
 #else
 		dma_unmap_single(HifInfo->Dev, DmaConf.Dst, Size, DMA_FROM_DEVICE);
+		if (RxDmaBuf != Buf)
+			memcpy(Buf, RxDmaBuf, Size);
 #endif /* MTK_DMA_BUF_MEMCPY_SUP */
 
 		if ((RegWHLPCR & WHLPCR_INT_EN_SET) == 1)
@@ -1114,7 +1149,23 @@ kalDevPortWrite(IN P_GLUE_INFO_T GlueInfo, IN UINT_16 Port, IN UINT_32 Size, IN 
 #else
 
 		/* DMA_TO_DEVICE writeback the cache */
-		DmaConf.Src = dma_map_single(HifInfo->Dev, Buf, Size, DMA_TO_DEVICE);
+		{
+			VOID *TxDmaBuf = Buf;
+
+			if (!virt_addr_valid(Buf) || !virt_addr_valid(Buf + Size - 1)) {
+				TxDmaBuf = ahbBounceGet(&ahbTxBounce, Size);
+				if (!TxDmaBuf) {
+					DBGLOG(TX, ERROR, "no TX bounce buffer for %u bytes\n", Size);
+					return FALSE;
+				}
+				memcpy(TxDmaBuf, Buf, Size);
+			}
+			DmaConf.Src = dma_map_single(HifInfo->Dev, TxDmaBuf, Size, DMA_TO_DEVICE);
+			if (dma_mapping_error(HifInfo->Dev, DmaConf.Src)) {
+				DBGLOG(TX, ERROR, "TX dma_map_single failed (%u bytes)\n", Size);
+				return FALSE;
+			}
+		}
 #endif /* MTK_DMA_BUF_MEMCPY_SUP */
 
 		/* start to write */
