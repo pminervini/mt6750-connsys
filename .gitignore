@@ -1,0 +1,34 @@
+# kernel out-of-tree build artifacts
+*.o
+*.ko
+*.mod
+*.mod.c
+*.cmd
+.*.cmd
+*.order
+*.symvers
+modules.order
+Module.symvers
+.tmp_versions/
+*.a
+
+# compiled test/launcher binaries (keep the .c sources)
+tools/btif-lpbk-test
+tools/stpbt-hci-test
+tools/stpgps-probe
+tools/gps-nmea
+tools/hci-localver
+tools/launcher/mtk_stp_launcher
+tools/stpbt-vhci-bridge
+tools/btup-scan
+tools/fbcursor
+tools/evrep
+tools/fmctl
+
+# staged firmware blobs and in-tree kos (populated per kernel build)
+tools/wifi-fw/
+tools/wifi-stage/
+tools/kbd-stage/
+
+# JetBrains IDE project files
+.idea/
