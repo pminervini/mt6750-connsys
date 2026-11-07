@@ -520,7 +520,7 @@ int mtk_p2p_cfg80211_change_bss(struct wiphy *wiphy, struct net_device *dev, str
 
 int mtk_p2p_cfg80211_remain_on_channel(struct wiphy *wiphy,
 				       struct wireless_dev *wdev,
-				       struct ieee80211_channel *chan, unsigned int duration, u64 *cookie,
+				       struct ieee80211_channel *chan, unsigned int duration, u64 cookie,
 				       const u8 *rx_addr);
 
 int mtk_p2p_cfg80211_scan(struct wiphy *wiphy, struct cfg80211_scan_request *request);
@@ -545,7 +545,7 @@ int mtk_p2p_cfg80211_change_beacon(struct wiphy *wiphy, struct net_device *dev, 
 int mtk_p2p_cfg80211_mgmt_tx(struct wiphy *wiphy,
 			     struct wireless_dev *wdev,
 			     struct cfg80211_mgmt_tx_params *params,
-			     u64 *cookie);
+			     u64 cookie);
 
 int mtk_p2p_cfg80211_stop_ap(struct wiphy *wiphy, struct net_device *dev, unsigned int link_id);
 

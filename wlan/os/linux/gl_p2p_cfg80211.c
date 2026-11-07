@@ -905,7 +905,7 @@ int mtk_p2p_cfg80211_disassoc(struct wiphy *wiphy, struct net_device *dev, struc
 int mtk_p2p_cfg80211_remain_on_channel(struct wiphy *wiphy,
 				       struct wireless_dev *wdev,
 				       struct ieee80211_channel *chan,
-				       unsigned int duration, u64 *cookie,
+				       unsigned int duration, u64 cookie,
 				       const u8 *rx_addr)
 {
 	INT_32 i4Rslt = -EINVAL;
@@ -920,7 +920,6 @@ int mtk_p2p_cfg80211_remain_on_channel(struct wiphy *wiphy,
 		prGlueInfo = *((P_GLUE_INFO_T *) wiphy_priv(wiphy));
 		prGlueP2pInfo = prGlueInfo->prP2PInfo;
 
-		*cookie = prGlueP2pInfo->u8Cookie++;
 
 		prMsgChnlReq = cnmMemAlloc(prGlueInfo->prAdapter, RAM_TYPE_MSG, sizeof(MSG_P2P_CHNL_REQUEST_T));
 
@@ -933,7 +932,7 @@ int mtk_p2p_cfg80211_remain_on_channel(struct wiphy *wiphy,
 		DBGLOG(P2P, TRACE, "mtk_p2p_cfg80211_remain_on_channel\n");
 
 		prMsgChnlReq->rMsgHdr.eMsgId = MID_MNY_P2P_CHNL_REQ;
-		prMsgChnlReq->u8Cookie = *cookie;
+		prMsgChnlReq->u8Cookie = cookie;
 		prMsgChnlReq->u4Duration = duration;
 
 		mtk_p2p_cfg80211func_channel_format_switch(chan, NL80211_CHAN_HT20,	/* 4 KH Need Check */
@@ -988,7 +987,7 @@ int mtk_p2p_cfg80211_cancel_remain_on_channel(struct wiphy *wiphy,
 int mtk_p2p_cfg80211_mgmt_tx(struct wiphy *wiphy,
 			     struct wireless_dev *wdev,
 			     struct cfg80211_mgmt_tx_params *params,
-			     u64 *cookie)
+			     u64 cookie)
 {
 	P_GLUE_INFO_T prGlueInfo = (P_GLUE_INFO_T) NULL;
 	P_GL_P2P_INFO_T prGlueP2pInfo = (P_GL_P2P_INFO_T) NULL;
@@ -1006,7 +1005,6 @@ int mtk_p2p_cfg80211_mgmt_tx(struct wiphy *wiphy,
 		prGlueInfo = *((P_GLUE_INFO_T *) wiphy_priv(wiphy));
 		prGlueP2pInfo = prGlueInfo->prP2PInfo;
 
-		*cookie = prGlueP2pInfo->u8Cookie++;
 
 		/* Channel & Channel Type & Wait time are ignored. */
 		prMsgTxReq = cnmMemAlloc(prGlueInfo->prAdapter, RAM_TYPE_MSG, sizeof(MSG_P2P_MGMT_TX_REQUEST_T));
@@ -1040,7 +1038,7 @@ int mtk_p2p_cfg80211_mgmt_tx(struct wiphy *wiphy,
 			break;
 		}
 
-		prMsgTxReq->u8Cookie = *cookie;
+		prMsgTxReq->u8Cookie = cookie;
 		prMsgTxReq->rMsgHdr.eMsgId = MID_MNY_P2P_MGMT_TX;
 
 		pucFrameBuf = (PUINT_8) ((ULONG) prMgmtFrame->prPacket + MAC_TX_RESERVED_FIELD);
