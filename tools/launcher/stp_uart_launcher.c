@@ -524,6 +524,8 @@ int cmd_hdr_sch_patch (P_STP_PARAMS_CONFIG pStpParamsConfig)
 			chipId = 0x6735;
 			ALOGI("for denali chipid convert\n");
 		}
+		if (0x0326 == chipId)	/* MT6755/MT6750 (jade): ROMv2_lm patches */
+			chipId = 0x6755;
         strncpy(chipName, "mt",strlen("mt"));
         sprintf (chipName + strlen(chipName), "%04x", chipId);
 
@@ -602,7 +604,7 @@ int cmd_hdr_sch_patch (P_STP_PARAMS_CONFIG pStpParamsConfig)
         if((!strcmp(chipName,"mt6620")) || (!strcmp(chipName,"mt6628")) || (!strcmp(chipName,"mt6630")) ||
 			(!strcmp(chipName,"mt6572")) || (!strcmp(chipName,"mt6582")) || (!strcmp(chipName,"mt6592")) || 
 			(!strcmp(chipName,"mt8127"))  || (!strcmp(chipName,"mt6571")) || (!strcmp(chipName,"mt6752")) || 
-			(!strcmp(chipName,"mt8163")) || (!strcmp(chipName,"mt6580"))|| (!strcmp(chipName,"mt6735")))
+			(!strcmp(chipName,"mt8163")) || (!strcmp(chipName,"mt6580"))|| (!strcmp(chipName,"mt6735")) || (!strcmp(chipName,"mt6755")))
         {
         	if((!strcmp(chipName,"mt6572")) || (!strcmp(chipName,"mt6582")) || (!strcmp(chipName,"mt6592")))
         	{
@@ -611,7 +613,7 @@ int cmd_hdr_sch_patch (P_STP_PARAMS_CONFIG pStpParamsConfig)
         	}else if(!strcmp(chipName,"mt8127") || !strcmp(chipName,"mt6571")){
 				strncpy(chipName,"ROMv2",strlen("ROMv2"));
 				chipName[5] = '\0';
-		}else if(!strcmp(chipName,"mt6752") || !strcmp(chipName,"mt6735") || !strcmp(chipName,"mt8163") || !strcmp(chipName,"mt6580")){
+		}else if(!strcmp(chipName,"mt6752") || !strcmp(chipName,"mt6735") || !strcmp(chipName,"mt8163") || !strcmp(chipName,"mt6580") || !strcmp(chipName,"mt6755")){
 			strncpy(chipName,"ROMv2_lm",strlen("ROMv2_lm"));
 		}
 			
@@ -1434,8 +1436,10 @@ int main(int argc, char *argv[])
 		chipId = 0x6735;
 		ALOGI("for denali chipid convert\n");
 	}
+	if (0x0326 == chipId)
+		chipId = 0x6755;
 
-	if((0x6735 == chipId) || (0x6752 == chipId) || (0x6582 == chipId) || (0x6592 == chipId) || (0x6572 == chipId) || (0x6571 == chipId) || (0x8127 == chipId) || (0x8163 == chipId) || (0x6580 == chipId))
+	if((0x6735 == chipId) || (0x6752 == chipId) || (0x6582 == chipId) || (0x6592 == chipId) || (0x6572 == chipId) || (0x6571 == chipId) || (0x8127 == chipId) || (0x8163 == chipId) || (0x6580 == chipId) || (0x6755 == chipId))
 	{
 		ALOGI("run SOC chip flow\n");
 		gStpMode = STP_BTIF_FULL;

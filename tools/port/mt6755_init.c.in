@@ -1,0 +1,58 @@
+INT32 mtk_wcn_consys_hw_restore(struct device *device)
+{
+	return 0;
+}
+
+/*
+ * EMI: 1 MB "mediatek,consys-reserve-memory" region (memory-region phandle of
+ * the consys node). CONSYS sees it at 0xF0000000 once the INFRA remap register
+ * points at it; WMT uses the upper half (+0x80000) for control/coredump.
+ */
+INT32 mtk_wcn_consys_hw_init(void)
+{
+	INT32 iRet = -1;
+	struct device_node *node, *mem;
+	struct reserved_mem *rmem = NULL;
+	UINT32 v;
+
+	node = of_find_compatible_node(NULL, NULL, "mediatek,mt6755-consys");
+	if (!node) {
+		WMT_PLAT_ERR_FUNC("[%s] can't find CONSYS compatible node\n", __func__);
+		return iRet;
+	}
+	conn_reg.mcu_base = (SIZE_T) of_iomap(node, 0);
+	conn_reg.ap_rgu_base = (SIZE_T) of_iomap(node, 1);
+	conn_reg.topckgen_base = (SIZE_T) of_iomap(node, 2);
+	conn_reg.spm_base = (SIZE_T) of_iomap(node, 3);
+	if (!conn_reg.mcu_base || !conn_reg.ap_rgu_base || !conn_reg.topckgen_base || !conn_reg.spm_base) {
+		WMT_PLAT_ERR_FUNC("consys reg mapping failed\n");
+		return iRet;
+	}
+	mem = of_parse_phandle(node, "memory-region", 0);
+	if (mem)
+		rmem = of_reserved_mem_lookup(mem);
+	if (!rmem || rmem->size < SZ_1M) {
+		WMT_PLAT_ERR_FUNC("no consys reserved memory (memory-region)\n");
+		return iRet;
+	}
+	gConEmiPhyBase = rmem->base;
+	v = CONSYS_REG_READ(conn_reg.topckgen_base + CONSYS_EMI_REMAP_OFFSET);
+	WMT_PLAT_INFO_FUNC("EMI remap reg was 0x%08x\n", v);
+	v = (v & ~0x1FFF) | ((gConEmiPhyBase & 0xFFF00000) >> 20) | (0x1 << 12);
+	CONSYS_REG_WRITE(conn_reg.topckgen_base + CONSYS_EMI_REMAP_OFFSET, v);
+	WMT_PLAT_INFO_FUNC("EMI base %pa (1 MB), remap reg 0x%08x\n", &gConEmiPhyBase,
+			   CONSYS_REG_READ(conn_reg.topckgen_base + CONSYS_EMI_REMAP_OFFSET));
+
+	pEmibaseaddr = ioremap(gConEmiPhyBase + CONSYS_EMI_AP_PHY_OFFSET, CONSYS_EMI_MEM_SIZE);
+	if (!pEmibaseaddr) {
+		WMT_PLAT_ERR_FUNC("EMI mapping fail\n");
+		return iRet;
+	}
+	memset_io(pEmibaseaddr, 0, CONSYS_EMI_MEM_SIZE);
+
+	iRet = platform_driver_register(&mtk_wmt_dev_drv);
+	if (iRet)
+		WMT_PLAT_ERR_FUNC("WMT platform driver registered failed(%d)\n", iRet);
+	return iRet;
+}
+

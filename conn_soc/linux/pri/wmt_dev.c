@@ -875,7 +875,7 @@ static INT32 wmt_internal_loopback(INT32 count, INT32 max)
 		pSignal = &pOp->signal;
 		pOp->op.opId = WMT_OPID_LPBK;
 		pOp->op.au4OpData[0] = lpbk_buffer.payload_length;	/* packet length */
-		pOp->op.au4OpData[1] = (UINT32) &gLpbkBuf[0];
+		pOp->op.au4OpData[1] = (SIZE_T) &gLpbkBuf[0];
 		pSignal->timeoutValue = MAX_EACH_WMT_CMD;
 		WMT_INFO_FUNC("OPID(%d) type(%d) start\n", pOp->op.opId, pOp->op.au4OpData[0]);
 		if (DISABLE_PSM_MONITOR()) {

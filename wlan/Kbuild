@@ -25,7 +25,7 @@ ccflags-y += -DCFG_HS20_DEBUG=0
 ccflags-y += -DCFG_ENABLE_GTK_FRAME_FILTER=0
 ccflags-y += -DCFG_SUPPORT_MET_PROFILING=0
 ccflags-y += -DCFG_TC1_FEATURE=0
-ccflags-y += -DCFG_SRAM_SIZE_OPTION=0
+ccflags-y += -DCFG_SRAM_SIZE_OPTION=2
 
 ccflags-y += -I$(src)/os -I$(src)/os/linux/include -I$(src)/os/linux/hif/ahb/include
 ccflags-y += -I$(src)/include -I$(src)/include/nic -I$(src)/include/mgmt
@@ -100,4 +100,4 @@ wlan_gen2-objs := \
 	mgmt/p2p_state.o \
 	os/linux/hif/ahb/arm.o \
 	os/linux/hif/ahb/ahb.o \
-	os/linux/hif/ahb/mt6572/ahb_pdma.o
+	os/linux/hif/ahb/mt6755/ahb_pdma.o

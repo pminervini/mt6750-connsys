@@ -1,0 +1,35 @@
+/* MT6353 VCN33: enable in SW, then hand over to CONSYS (HW mode), as stock mt6755.c */
+static void vcn33_ctrl(u16 reg, UINT32 enable)
+{
+	if (enable) {
+		mt6755_pmic_rmw(MT6353_VCN33_VOSEL, 0x7, 8, 0);	/* 3.3 V */
+		mt6755_pmic_rmw(reg, 1, 1, 1);
+		mt6755_pmic_rmw(reg, 1, 3, 1);
+	} else {
+		mt6755_pmic_rmw(reg, 1, 3, 0);
+		mt6755_pmic_rmw(reg, 1, 1, 0);
+	}
+}
+
+INT32 mtk_wcn_consys_hw_bt_paldo_ctrl(UINT32 enable)
+{
+	vcn33_ctrl(MT6353_VCN33_CON0_BT, enable);
+	WMT_PLAT_INFO_FUNC("WMT do BT PMIC %s\n", enable ? "on" : "off");
+	return 0;
+}
+
+INT32 mtk_wcn_consys_hw_wifi_paldo_ctrl(UINT32 enable)
+{
+	vcn33_ctrl(MT6353_VCN33_CON1_WIFI, enable);
+	WMT_PLAT_INFO_FUNC("WMT do WIFI PMIC %s\n", enable ? "on" : "off");
+	return 0;
+}
+EXPORT_SYMBOL(mtk_wcn_consys_hw_wifi_paldo_ctrl);
+
+INT32 mtk_wcn_consys_hw_vcn28_ctrl(UINT32 enable)
+{
+	vcn28_set(enable);
+	WMT_PLAT_INFO_FUNC("vcn28 %s (fm/gps, co-clock)\n", enable ? "on" : "off");
+	return 0;
+}
+

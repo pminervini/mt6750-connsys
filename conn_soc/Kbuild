@@ -1,9 +1,11 @@
+CONSYS_PLAT ?= mt6755
+
 subdir-ccflags-y += \
 	-I$(src)/linux/include \
 	-I$(src)/linux/pri/include \
 	-I$(src)/core/include \
 	-I$(src)/include \
-	-I$(src)/mt6572/include \
+	-I$(src)/$(CONSYS_PLAT)/include \
 	-I$(src)/../detect_inc \
 	-I$(src)/../btif/inc \
 	-I$(src)/../compat_inc
@@ -16,7 +18,7 @@ mtk_stp_wmt_soc-objs := core/wmt_core.o core/wmt_ctrl.o core/wmt_func.o \
 	linux/pub/osal.o linux/pub/bgw_desense.o \
 	linux/pri/stp_exp.o core/stp_core.o core/psm_core.o core/btm_core.o \
 	linux/pri/stp_dbg.o \
-	mt6572/mtk_wcn_consys_hw.o mt6572/wmt_plat_alps.o mt6572/plat_stub.o
+	$(CONSYS_PLAT)/mtk_wcn_consys_hw.o $(CONSYS_PLAT)/wmt_plat_alps.o $(CONSYS_PLAT)/plat_stub.o
 
 obj-m += mtk_stp_bt_soc.o
 mtk_stp_bt_soc-objs := linux/pub/stp_chrdev_bt.o
