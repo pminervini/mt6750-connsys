@@ -1,4 +1,7 @@
 CONSYS_PLAT ?= mt6755
+ifeq ($(CONSYS_PLAT),mt6755)
+subdir-ccflags-y += -DCONSYS_PLAT_MT6755
+endif
 
 subdir-ccflags-y += \
 	-I$(src)/linux/include \

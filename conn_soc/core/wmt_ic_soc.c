@@ -82,7 +82,11 @@
 /* MCU-clock boost during patch download: 6580/6752-era fw-side register
  * writes (WMT op 0x08) at addresses undefined on MT6572 — the ALPS 3.4
  * MT6572 driver has no such step. The fw ACKs them blindly. OFF. */
+#ifdef CONSYS_PLAT_MT6755
+#define CFG_WMT_PATCH_DL_OPTM (1)	/* stock MT6755 */
+#else
 #define CFG_WMT_PATCH_DL_OPTM (0)
+#endif
 #if CFG_WMT_LTE_COEX_HANDLING
 #define CFG_WMT_FILTER_MODE_SETTING (1)
 #else
@@ -94,7 +98,11 @@
  * for MT6580-era chips; not present in the ALPS 3.4 MT6572 driver and
  * undocumented for this chip. Prime suspect for the WiFi RAM code dying
  * at entry (BT unaffected). OFF to match the MT6572-native sequence. */
+#ifdef CONSYS_PLAT_MT6755
+#define CFG_WMT_POWER_ON_DLM  (1)	/* stock MT6755: patch goes to DLM, power it first */
+#else
 #define CFG_WMT_POWER_ON_DLM  (0)
+#endif
 /*******************************************************************************
 *                             D A T A   T Y P E S
 ********************************************************************************

@@ -511,7 +511,7 @@ INT32 wmt_plat_eirq_ctrl(ENUM_PIN_ID id, ENUM_PIN_STATE state)
 
 		if (PIN_STA_INIT == state) {
 #ifdef CONFIG_OF
-			node = of_find_compatible_node(NULL, NULL, "mediatek,mt6572-consys");
+			node = of_find_compatible_node(NULL, NULL, "mediatek,mt6755-consys");
 			if (node) {
 				bgf_irq_num = irq_of_parse_and_map(node, 0);
 				/* get the interrupt line behaviour */
