@@ -702,6 +702,51 @@ static INT32 wmt_plat_gps_lna_ctrl(ENUM_PIN_STATE state)
 }
 #else
 
+#ifdef CONSYS_PLAT_MT6755
+/*
+ * k50v1 tablet: GPS LNA enable = GPIO114 (stock DT gpslna states, pinmux 0x7200).
+ * Mainline has no MT6755 pinctrl, so drive the GPIO block directly: mode 0 (GPIO),
+ * output, DOUT via the SET/RST registers (VAL_REGS {val,set,rst} at 0x10 stride).
+ */
+#define MT6755_GPIO_BASE	0x10005000
+static int gps_lna_pin = 114;
+module_param(gps_lna_pin, int, 0444);
+
+static INT32 wmt_plat_gps_lna_ctrl(ENUM_PIN_STATE state)
+{
+	static void __iomem *gpio;
+	u32 bank = gps_lna_pin / 32, bit = BIT(gps_lna_pin % 32);
+	u32 mreg = 0x300 + (gps_lna_pin / 8) * 0x10, mshift = (gps_lna_pin % 8) * 4;
+
+	if (gps_lna_pin < 0)
+		return 0;
+	if (!gpio) {
+		gpio = ioremap(MT6755_GPIO_BASE, 0x1000);
+		if (!gpio)
+			return -1;
+	}
+	switch (state) {
+	case PIN_STA_INIT:
+	case PIN_STA_DEINIT:
+		writel(readl(gpio + mreg) & ~(0xf << mshift), gpio + mreg);	/* GPIO mode */
+		writel(bit, gpio + 0x100 + bank * 0x10 + 8);			/* DOUT = 0 */
+		writel(bit, gpio + 0x000 + bank * 0x10 + 4);			/* DIR = out */
+		WMT_PLAT_INFO_FUNC("gps lna (GPIO%d) init/low\n", gps_lna_pin);
+		break;
+	case PIN_STA_OUT_H:
+		writel(bit, gpio + 0x100 + bank * 0x10 + 4);
+		WMT_PLAT_INFO_FUNC("gps lna (GPIO%d) high\n", gps_lna_pin);
+		break;
+	case PIN_STA_OUT_L:
+		writel(bit, gpio + 0x100 + bank * 0x10 + 8);
+		WMT_PLAT_INFO_FUNC("gps lna (GPIO%d) low\n", gps_lna_pin);
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
+#else
 static INT32 wmt_plat_gps_lna_ctrl(ENUM_PIN_STATE state)
 {
 #if !defined(CONFIG_MTK_GPIO_LEGACY)
@@ -783,6 +828,7 @@ static INT32 wmt_plat_gps_lna_ctrl(ENUM_PIN_STATE state)
 #endif
 #endif /* !defined(CONFIG_MTK_GPIO_LEGACY) */
 }
+#endif /* CONSYS_PLAT_MT6755 */
 #endif
 
 INT32 wmt_plat_i2s_ctrl(ENUM_PIN_STATE state)
