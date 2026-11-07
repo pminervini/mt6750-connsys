@@ -28,9 +28,19 @@
 #define GPS_DEV_MAJOR		191
 
 /* The ioctl numbers MediaTek's mnld uses on this generation: plain, no _IO() */
-#define COMBO_IOC_GPS_HWVER	6
-#define COMBO_IOC_RTC_FLAG	7
-#define COMBO_IOC_CO_CLOCK_FLAG	8
+/* stock MT6755 numbering (connectivity/source/gps/stp_chrdev_gps.c), what mnld uses */
+#define COMBO_IOC_GPS_HWVER		6
+#define COMBO_IOC_GPS_IC_HW_VERSION	7
+#define COMBO_IOC_GPS_IC_FW_VERSION	8
+#define COMBO_IOC_D1_EFUSE_GET		9
+#define COMBO_IOC_RTC_FLAG		10
+#define COMBO_IOC_CO_CLOCK_FLAG		11
+#define COMBO_IOC_TRIGGER_WMT_ASSERT	12
+#define COMBO_IOC_WMT_STATUS		13
+#define COMBO_IOC_TAKE_GPS_WAKELOCK	14
+#define COMBO_IOC_GIVE_GPS_WAKELOCK	15
+#define COMBO_IOC_GET_GPS_LNA_PIN	16
+#define COMBO_IOC_GPS_LISTEN_RST_EVT	20
 
 /* The STP parser drops frames with a longer payload. */
 #define GPS_TX_MAX		2048
@@ -171,7 +181,45 @@ static long gps_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case COMBO_IOC_CO_CLOCK_FLAG:
 		return mtk_wcn_wmt_co_clock_flag_get();
 
+	case COMBO_IOC_GPS_IC_HW_VERSION:
+	case COMBO_IOC_GPS_IC_FW_VERSION: {
+		UINT32 v = mtk_wcn_wmt_ic_info_get(cmd == COMBO_IOC_GPS_IC_HW_VERSION ?
+						    WMTCHIN_HWVER : WMTCHIN_FWVER);
+
+		pr_info("GPS ioctl: ic %s version 0x%x\n",
+			cmd == COMBO_IOC_GPS_IC_HW_VERSION ? "hw" : "fw", v);
+		if (copy_to_user((void __user *)arg, &v, sizeof(v)))
+			return -EFAULT;
+		return 0;
+	}
+
+	case COMBO_IOC_D1_EFUSE_GET:		/* only MT6735/MT6763 have it (stock) */
+		return 0;
+
+	case COMBO_IOC_TRIGGER_WMT_ASSERT:
+		return mtk_wcn_wmt_assert(WMTDRV_TYPE_GPS, arg) == MTK_WCN_BOOL_TRUE ? 0 : -EBUSY;
+
+	case COMBO_IOC_WMT_STATUS:		/* -888 resetting, -889 reset done, 0 normal */
+		return READ_ONCE(gps_reset) ? -889 : 0;
+
+	case COMBO_IOC_TAKE_GPS_WAKELOCK:	/* no suspend on this node */
+	case COMBO_IOC_GIVE_GPS_WAKELOCK:
+		return 0;
+
+	case COMBO_IOC_GET_GPS_LNA_PIN: {
+		int pin = 114;			/* k50v1: GPIO114, see wmt_plat_alps.c */
+
+		if (copy_to_user((void __user *)arg, &pin, sizeof(pin)))
+			return -EFAULT;
+		return 0;
+	}
+
+	case COMBO_IOC_GPS_LISTEN_RST_EVT:
+		/* mnld parks a thread here: return on chip reset or when the node closes */
+		return wait_event_interruptible(gps_wq, READ_ONCE(gps_reset) || !READ_ONCE(gps_opened));
+
 	default:
+		pr_info("GPS ioctl: unsupported cmd %u\n", cmd);
 		return -ENOTTY;
 	}
 }
@@ -229,7 +277,8 @@ static int gps_release(struct inode *inode, struct file *filp)
 		pr_info("GPS off\n");
 
 	mtk_wcn_wmt_psm_release();
-	gps_opened = false;
+	WRITE_ONCE(gps_opened, false);
+	wake_up_interruptible(&gps_wq);		/* releases COMBO_IOC_GPS_LISTEN_RST_EVT */
 
 	return 0;
 }
@@ -242,6 +291,7 @@ static const struct file_operations gps_fops = {
 	.write = gps_write,
 	.poll = gps_poll,
 	.unlocked_ioctl = gps_ioctl,
+	.compat_ioctl = compat_ptr_ioctl,	/* mnld is a 32-bit binary */
 };
 
 static int __init gps_init(void)
