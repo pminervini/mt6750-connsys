@@ -561,6 +561,26 @@ INT32 wmt_core_reg_rw_raw(UINT32 isWrite, UINT32 offset, PUINT32 pVal, UINT32 ma
 	UINT32 evtLen;
 	UINT8 evtBuf[16] = { 0 };
 
+	/* debug: 0xADE0xxxx = A-die (RF chip) register xxxx, read via WMT opcode 0x13 */
+	/* 0xADEcxxxx: byte 5 of the command = c ^ 4 (0xADE0xxxx -> the usual 0x04) */
+	if (!isWrite && (offset & 0xfff00000) == 0xADE00000) {
+		UINT8 cmd[] = { 0x01, 0x13, 0x04, 0x00, 0x02, ((offset >> 16) & 0xf) ^ 4,
+				offset & 0xff, (offset >> 8) & 0xff };
+
+		iRet = wmt_core_tx(cmd, sizeof(cmd), &u4Res, MTK_WCN_BOOL_FALSE);
+		if (iRet || u4Res != sizeof(cmd))
+			return -2;
+		iRet = wmt_core_rx(evtBuf, 13, &u4Res);
+		if (iRet || u4Res != 13) {
+			pr_info("ADIE rx fail %d len %u: %*ph\n", iRet, u4Res, 13, evtBuf);
+			return -3;
+		}
+		if (evtBuf[4] != 0)
+			pr_info("ADIE status: %*ph\n", 13, evtBuf);
+		osal_memcpy(pVal, &evtBuf[9], 4);
+		return 0;
+	}
+
 	WMT_SET_REG_CMD[4] = (isWrite) ? 0x1 : 0x2;	/* w:1, r:2 */
 	osal_memcpy(&WMT_SET_REG_CMD[8], &offset, 4);	/* offset */
 	osal_memcpy(&WMT_SET_REG_CMD[12], pVal, 4);	/* [2] is var addr */
