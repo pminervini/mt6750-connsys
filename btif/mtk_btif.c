@@ -3014,7 +3014,8 @@ int btif_log_buf_dmp_in(P_BTIF_LOG_QUEUE_T p_log_que, const char *p_buf,
 
 /*check if log dynamic output function is enabled or not*/
 	if (output_flag)	/* mainline debug: one line per chunk, first 64 bytes */
-		pr_info("BTIF-RT %s %d: %*ph\n", dir, len, len > 64 ? 64 : len, p_buf);
+		pr_info("BTIF-RT %s %d: %*ph ... %*ph\n", dir, len, len > 64 ? 64 : len, p_buf,
+			len > 8 ? 8 : len, p_buf + (len > 8 ? len - 8 : 0));
 	BTIF_DBG_FUNC("--\n");
 
 	return 0;
