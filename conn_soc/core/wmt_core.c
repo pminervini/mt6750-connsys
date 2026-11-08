@@ -39,6 +39,8 @@
 #include "osal_typedef.h"
 
 #include "wmt_lib.h"
+#include <linux/moduleparam.h>
+#include <linux/printk.h>
 #include "wmt_core.h"
 #include "wmt_ctrl.h"
 #include "wmt_ic.h"
@@ -291,9 +293,15 @@ INT32 wmt_core_deinit(VOID)
 
 /* TODO: [ChangeFeature][George] Is wmt_ctrl a good interface? maybe not...... */
 /* parameters shall be copied in/from ctrl buffer, which is also a size-wasting buffer. */
+static bool wmt_tx_dump;
+module_param(wmt_tx_dump, bool, 0644);
+
 INT32 wmt_core_tx(const PUINT8 pData, const UINT32 size, PUINT32 writtenSize, const MTK_WCN_BOOL bRawFlag)
 {
 	INT32 iRet;
+
+	if (wmt_tx_dump && !(size > 100 && pData[0] == 0x01 && pData[1] == 0x01))	/* skip patch chunks */
+		print_hex_dump(KERN_INFO, "WMTTX: ", DUMP_PREFIX_NONE, 64, 1, pData, size > 64 ? 64 : size, false);
 #if 0				/* Test using direct function call instead of wmt_ctrl() interface */
 	WMT_CTRL_DATA ctrlData;
 

@@ -3013,12 +3013,8 @@ int btif_log_buf_dmp_in(P_BTIF_LOG_QUEUE_T p_log_que, const char *p_buf,
 	spin_unlock_irqrestore(&p_log_que->lock, flags);
 
 /*check if log dynamic output function is enabled or not*/
-	if (output_flag) {
-		pr_debug("BTIF-DBG, dir:%s, %d.%ds len:%d\n",
-		       dir, (int)p_timer->tv_sec, (int)p_timer->tv_nsec, len);
-/*output buffer content*/
-		btif_dump_data((char *)p_buf, len);
-	}
+	if (output_flag)	/* mainline debug: one line per chunk, first 64 bytes */
+		pr_info("BTIF-RT %s %d: %*ph\n", dir, len, len > 64 ? 64 : len, p_buf);
 	BTIF_DBG_FUNC("--\n");
 
 	return 0;

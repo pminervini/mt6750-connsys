@@ -19,6 +19,28 @@
 #include "stp_core.h"
 #include "btm_core.h"
 #include "wmt_plat.h"
+#include <linux/debugfs.h>
+#include <linux/vmalloc.h>
+
+/* mainline debug: keep every paged core-dump page, readable at /sys/kernel/debug/wmt_coredump */
+#define ML_DUMP_MAX (4 << 20)
+static u8 *ml_dump_buf;
+static struct debugfs_blob_wrapper ml_dump_blob;
+static void ml_dump_add(const u8 *p, u32 len)
+{
+	if (!ml_dump_buf) {
+		ml_dump_buf = vzalloc(ML_DUMP_MAX);
+		if (!ml_dump_buf)
+			return;
+		ml_dump_blob.data = ml_dump_buf;
+		debugfs_create_blob("wmt_coredump", 0400, NULL, &ml_dump_blob);
+	}
+	if (ml_dump_blob.size + len > ML_DUMP_MAX)
+		return;
+	memcpy(ml_dump_buf + ml_dump_blob.size, p, len);
+	ml_dump_blob.size += len;
+}
+
 
 #define PFX_BTM                         "[STP-BTM] "
 #define STP_BTM_LOG_LOUD                 4
@@ -556,6 +578,8 @@ static INT32 _stp_btm_handler(MTKSTP_BTM_T *stp_btm, P_STP_BTM_OP pStpOp)
 			osal_memcpy(&g_paged_dump_buffer[0], dump_vir_addr, dump_len);
 			_stp_dump_emi_dump_buffer(&g_paged_dump_buffer[0], dump_len);
 
+			if (0 == page_counter && ml_dump_buf)	/* new dump: start over */
+				ml_dump_blob.size = 0;
 			if (0 == page_counter) {	/* do fw assert infor paser in first paged dump */
 				if (1 == stp_dbg_get_host_trigger_assert())
 					issue_type = STP_HOST_TRIGGER_FW_ASSERT;
@@ -575,8 +599,8 @@ static INT32 _stp_btm_handler(MTKSTP_BTM_T *stp_btm, P_STP_BTM_OP pStpOp)
 				else if	(2 == g_coredump_mode)
 					ret = _stp_btm_put_emi_dump_to_nl(&g_paged_dump_buffer[0], dump_len);
 				else{
-					STP_BTM_INFO_FUNC("coredump is disabled!\n");
-					return 0;
+					ml_dump_add(&g_paged_dump_buffer[0], dump_len);
+					ret = 0;
 				}
 				if (ret == 0)
 					STP_BTM_INFO_FUNC("aee send ok!\n");

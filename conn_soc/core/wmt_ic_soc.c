@@ -87,7 +87,9 @@
 #else
 #define CFG_WMT_PATCH_DL_OPTM (0)
 #endif
-#if CFG_WMT_LTE_COEX_HANDLING
+/* stock MT6755 wmt_drv sends the WiFi/LTE coex filter tables and "set LTE project"
+ * (set_wifi_lte_coex_table_1) during sw_init even though no modem IDC path is used here */
+#if CFG_WMT_LTE_COEX_HANDLING || defined(CONSYS_PLAT_MT6755)
 #define CFG_WMT_FILTER_MODE_SETTING (1)
 #else
 #define CFG_WMT_FILTER_MODE_SETTING (0)
@@ -853,15 +855,17 @@ static struct init_script set_registers[] = {
  * SoC (non-combo) coex settings sent by the stock MT6755 wmt_drv after coex_wmt. With the stock
  * WMT_SOC.cfg (no coex_wmt_wifi_path / elna keys) both carry zero payloads.
  */
+#if 0
 static UINT8 WMT_COEX_WIFI_PATH_CMD[] = { 0x01, 0x10, 0x03, 0x00, 0x1a, 0x00, 0x00 };
 static UINT8 WMT_COEX_WIFI_PATH_EVT[] = { 0x02, 0x10, 0x01, 0x00, 0x00 };
 static UINT8 WMT_COEX_EXT_ELAN_GAIN_P1_CMD[] = { 0x01, 0x10, 0x12, 0x00, 0x1b,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 static UINT8 WMT_COEX_EXT_ELAN_GAIN_P1_EVT[] = { 0x02, 0x10, 0x01, 0x00, 0x00 };
+#endif
 
 static struct init_script coex_table[] = {
 	INIT_CMD(WMT_COEX_SETTING_CONFIG_CMD, WMT_COEX_SETTING_CONFIG_EVT, "coex_wmt"),
-#if !CFG_SUBSYS_COEX_NEED
+#if 0	/* not sent by the stock MT6755 driver (BTIF log of its init) */
 	INIT_CMD(WMT_COEX_WIFI_PATH_CMD, WMT_COEX_WIFI_PATH_EVT, "wifi path"),
 	INIT_CMD(WMT_COEX_EXT_ELAN_GAIN_P1_CMD, WMT_COEX_EXT_ELAN_GAIN_P1_EVT, "wifi elan gain p1"),
 #endif
@@ -1177,6 +1181,7 @@ static INT32 mtk_wcn_soc_sw_init(P_WMT_HIF_CONF pWmtHifConf)
 		wmt_stp_wifi_lte_coex();
 		WMT_DBG_FUNC("wmt_stp_wifi_lte_coex done!\n");
 	}
+#if CFG_WMT_LTE_COEX_HANDLING
 	if ((0x6582 == wmt_ic_ops_soc.icId) || (0x6592 == wmt_ic_ops_soc.icId)) {
 		/*get gpio tdm req antsel number */
 		ctrlPa1 = 0;
@@ -1190,6 +1195,7 @@ static INT32 mtk_wcn_soc_sw_init(P_WMT_HIF_CONF pWmtHifConf)
 		if (iRet)
 			WMT_ERR_FUNC("get_tdm_req_antsel_num_table fail(%d)\n", iRet);
 	}
+#endif
 #endif
 	/* 7. start RF calibration data */
 	ctrlPa1 = BT_PALDO;
@@ -1214,6 +1220,12 @@ static INT32 mtk_wcn_soc_sw_init(P_WMT_HIF_CONF pWmtHifConf)
 	ctrlPa1 = WIFI_PALDO;
 	ctrlPa2 = PALDO_OFF;
 	iRet = wmt_core_ctrl(WMT_CTRL_SOC_PALDO_CTRL, &ctrlPa1, &ctrlPa2);
+
+	/* stock MT6755 wmt_drv: "turn off VCN28 after reading efuse" (EFUSE_PALDO off) right after
+	 * the RF calibration; GPS/FM func-on switches it back on (co-clock mode) */
+	ctrlPa1 = GPS_PALDO;
+	ctrlPa2 = PALDO_OFF;
+	wmt_core_ctrl(WMT_CTRL_SOC_PALDO_CTRL, &ctrlPa1, &ctrlPa2);
 
 	iRet = wmt_stp_init_coex();
 	if (iRet) {
