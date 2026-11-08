@@ -716,7 +716,9 @@ static INT32 wmt_plat_gps_lna_ctrl(ENUM_PIN_STATE state)
 {
 	static void __iomem *gpio;
 	u32 bank = gps_lna_pin / 32, bit = BIT(gps_lna_pin % 32);
-	u32 mreg = 0x300 + (gps_lna_pin / 8) * 0x10, mshift = (gps_lna_pin % 8) * 4;
+	/* MODE: 10 pins/register, 3-bit fields at 0,3,..,12 and 16,..,28 */
+	u32 mreg = 0x300 + (gps_lna_pin / 10) * 0x10;
+	u32 mshift = (gps_lna_pin % 10) < 5 ? (gps_lna_pin % 10) * 3 : 16 + (gps_lna_pin % 10 - 5) * 3;
 
 	if (gps_lna_pin < 0)
 		return 0;
@@ -728,7 +730,7 @@ static INT32 wmt_plat_gps_lna_ctrl(ENUM_PIN_STATE state)
 	switch (state) {
 	case PIN_STA_INIT:
 	case PIN_STA_DEINIT:
-		writel(readl(gpio + mreg) & ~(0xf << mshift), gpio + mreg);	/* GPIO mode */
+		writel(readl(gpio + mreg) & ~(0x7 << mshift), gpio + mreg);	/* GPIO mode */
 		writel(bit, gpio + 0x100 + bank * 0x10 + 8);			/* DOUT = 0 */
 		writel(bit, gpio + 0x000 + bank * 0x10 + 4);			/* DIR = out */
 		WMT_PLAT_INFO_FUNC("gps lna (GPIO%d) init/low\n", gps_lna_pin);
