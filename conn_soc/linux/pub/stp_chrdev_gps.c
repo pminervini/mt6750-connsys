@@ -15,6 +15,7 @@
 #include <linux/cleanup.h>
 #include <linux/fs.h>
 #include <linux/module.h>
+#include <linux/delay.h>
 #include <linux/mutex.h>
 #include <linux/poll.h>
 #include <linux/uaccess.h>
@@ -118,6 +119,9 @@ static ssize_t gps_read(struct file *filp, char __user *buf, size_t count,
 	return len;
 }
 
+static unsigned int gps_wr_delay_ms;	/* debug: pace writes to the chip */
+module_param(gps_wr_delay_ms, uint, 0644);
+
 static ssize_t gps_write(struct file *filp, const char __user *buf,
 			 size_t count, loff_t *f_pos)
 {
@@ -135,6 +139,8 @@ static ssize_t gps_write(struct file *filp, const char __user *buf,
 	if (copy_from_user(gps_tx_buf, buf, count))
 		return -EFAULT;
 
+	if (gps_wr_delay_ms)
+		msleep(gps_wr_delay_ms);
 	written = mtk_wcn_stp_send_data(gps_tx_buf, count, GPS_TASK_INDX);
 	if (written < 0)
 		return -EIO;

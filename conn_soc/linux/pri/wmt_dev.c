@@ -604,6 +604,7 @@ INT32 wmt_dbg_reg_read(INT32 par1, INT32 par2, INT32 par3)
 	ENABLE_PSM_MONITOR();
 #endif
 	iRet = wmt_lib_reg_rw(0, par2, &value, par3);
+	pr_info("WMTREG 0x%08x = 0x%08x%s\n", par2, value, iRet ? " FAIL" : "");
 	WMT_INFO_FUNC("read combo chip register (0x%08x) with mask (0x%08x) %s, value = 0x%08x\n",
 		      par2, par3, iRet != 0 ? "failed" : "succeed", iRet != 0 ? -1 : value);
 	return 0;
