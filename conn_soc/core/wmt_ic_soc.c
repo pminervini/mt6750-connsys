@@ -849,8 +849,22 @@ static struct init_script set_registers[] = {
 };
 #endif
 
+/*
+ * SoC (non-combo) coex settings sent by the stock MT6755 wmt_drv after coex_wmt. With the stock
+ * WMT_SOC.cfg (no coex_wmt_wifi_path / elna keys) both carry zero payloads.
+ */
+static UINT8 WMT_COEX_WIFI_PATH_CMD[] = { 0x01, 0x10, 0x03, 0x00, 0x1a, 0x00, 0x00 };
+static UINT8 WMT_COEX_WIFI_PATH_EVT[] = { 0x02, 0x10, 0x01, 0x00, 0x00 };
+static UINT8 WMT_COEX_EXT_ELAN_GAIN_P1_CMD[] = { 0x01, 0x10, 0x12, 0x00, 0x1b,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+static UINT8 WMT_COEX_EXT_ELAN_GAIN_P1_EVT[] = { 0x02, 0x10, 0x01, 0x00, 0x00 };
+
 static struct init_script coex_table[] = {
 	INIT_CMD(WMT_COEX_SETTING_CONFIG_CMD, WMT_COEX_SETTING_CONFIG_EVT, "coex_wmt"),
+#if !CFG_SUBSYS_COEX_NEED
+	INIT_CMD(WMT_COEX_WIFI_PATH_CMD, WMT_COEX_WIFI_PATH_EVT, "wifi path"),
+	INIT_CMD(WMT_COEX_EXT_ELAN_GAIN_P1_CMD, WMT_COEX_EXT_ELAN_GAIN_P1_EVT, "wifi elan gain p1"),
+#endif
 
 #if CFG_SUBSYS_COEX_NEED
 /* no need in MT6628 */
