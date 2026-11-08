@@ -230,6 +230,12 @@ static long gps_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
  * the chip awake while the node is open, as Wi-Fi does while busy; PSM goes
  * back to its policy on close.
  */
+/* stock MT6755 keeps PSM running during GPS (sleep after every packet); holding the chip awake
+ * is optional */
+static bool gps_psm_hold;
+module_param(gps_psm_hold, bool, 0644);
+static bool gps_psm_held;
+
 static int gps_open(struct inode *inode, struct file *filp)
 {
 	guard(mutex)(&gps_open_lock);
@@ -238,18 +244,22 @@ static int gps_open(struct inode *inode, struct file *filp)
 	if (gps_opened)
 		return -EBUSY;
 
-	mtk_wcn_wmt_psm_hold();
+	gps_psm_held = gps_psm_hold;
+	if (gps_psm_held)
+		mtk_wcn_wmt_psm_hold();
 
 	if (mtk_wcn_wmt_func_on(WMTDRV_TYPE_GPS) == MTK_WCN_BOOL_FALSE) {
 		pr_err("WMT turn on GPS failed\n");
-		mtk_wcn_wmt_psm_release();
+		if (gps_psm_held)
+			mtk_wcn_wmt_psm_release();
 		return -ENODEV;
 	}
 
 	if (!mtk_wcn_stp_is_ready()) {
 		pr_err("STP is not ready\n");
 		mtk_wcn_wmt_func_off(WMTDRV_TYPE_GPS);
-		mtk_wcn_wmt_psm_release();
+		if (gps_psm_held)
+			mtk_wcn_wmt_psm_release();
 		return -ENODEV;
 	}
 
@@ -276,7 +286,8 @@ static int gps_release(struct inode *inode, struct file *filp)
 	else
 		pr_info("GPS off\n");
 
-	mtk_wcn_wmt_psm_release();
+	if (gps_psm_held)
+		mtk_wcn_wmt_psm_release();
 	WRITE_ONCE(gps_opened, false);
 	wake_up_interruptible(&gps_wq);		/* releases COMBO_IOC_GPS_LISTEN_RST_EVT */
 
