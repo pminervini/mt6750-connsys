@@ -202,12 +202,17 @@ static void consys_cpu_reset(int assert)
 	CONSYS_REG_WRITE(conn_reg.ap_rgu_base + CONSYS_CPU_SW_RST_OFFSET, (v & 0x00FFFFFF) | 0x88000000);
 }
 
+static unsigned int vcn28_settle_us = 2000;
+module_param(vcn28_settle_us, uint, 0644);
+
 static void vcn28_set(int on)
 {
 	mt6755_pmic_rmw(MT6353_VCN28_CON0, 1, 3, 0);		/* SW mode */
 	if (on)
 		mt6755_pmic_rmw(MT6353_VCN28_VOSEL, 0x3, 8, 3);	/* 2.8 V */
 	mt6755_pmic_rmw(MT6353_VCN28_CON0, 1, 1, on ? 1 : 0);
+	if (on)
+		usleep_range(vcn28_settle_us, vcn28_settle_us + 100);	/* stock: regulator ramp delay */
 }
 
 /* stock common_main/platform/mt6755.c + mtk_wcn_consys_hw.c, co-clock (WMT_SOC.cfg co_clock_flag=1) */

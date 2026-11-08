@@ -119,6 +119,8 @@ static ssize_t gps_read(struct file *filp, char __user *buf, size_t count,
 	return len;
 }
 
+static bool gps_ignore_assert;	/* debug: keep a stuck GPS session alive for inspection */
+module_param(gps_ignore_assert, bool, 0644);
 static unsigned int gps_wr_delay_ms;	/* debug: pace writes to the chip */
 module_param(gps_wr_delay_ms, uint, 0644);
 
@@ -203,6 +205,10 @@ static long gps_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return 0;
 
 	case COMBO_IOC_TRIGGER_WMT_ASSERT:
+		if (gps_ignore_assert) {
+			pr_info("GPS: assert request ignored (gps_ignore_assert)\n");
+			return 0;
+		}
 		return mtk_wcn_wmt_assert(WMTDRV_TYPE_GPS, arg) == MTK_WCN_BOOL_TRUE ? 0 : -EBUSY;
 
 	case COMBO_IOC_WMT_STATUS:		/* -888 resetting, -889 reset done, 0 normal */
