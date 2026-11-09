@@ -562,6 +562,20 @@ INT32 wmt_core_reg_rw_raw(UINT32 isWrite, UINT32 offset, PUINT32 pVal, UINT32 ma
 	UINT8 evtBuf[16] = { 0 };
 
 	/* debug: 0xADE0xxxx = A-die (RF chip) register xxxx, read via WMT opcode 0x13 */
+	/* debug: A-die write, guessed format 01 13 08 00 01 04 addr16 val32; logs the raw event */
+	if (isWrite && (offset & 0xffff0000) == 0xADE00000) {
+		UINT8 cmd[12] = { 0x01, 0x13, 0x08, 0x00, 0x01, 0x04, offset & 0xff, (offset >> 8) & 0xff };
+		UINT8 ev[16] = { 0 };
+
+		osal_memcpy(&cmd[8], pVal, 4);
+		iRet = wmt_core_tx(cmd, sizeof(cmd), &u4Res, MTK_WCN_BOOL_FALSE);
+		if (iRet || u4Res != sizeof(cmd))
+			return -2;
+		iRet = wmt_core_rx(ev, sizeof(ev), &u4Res);
+		pr_info("ADIEWR %04x=%08x rx %d len %u: %*ph\n", offset & 0xffff, *pVal, iRet, u4Res, 16, ev);
+		return iRet ? -3 : 0;
+	}
+
 	/* 0xADEcxxxx: byte 5 of the command = c ^ 4 (0xADE0xxxx -> the usual 0x04) */
 	if (!isWrite && (offset & 0xfff00000) == 0xADE00000) {
 		UINT8 cmd[] = { 0x01, 0x13, 0x04, 0x00, 0x02, ((offset >> 16) & 0xf) ^ 4,
