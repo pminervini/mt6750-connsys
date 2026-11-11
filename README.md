@@ -1,4 +1,15 @@
-# mt6572-connsys-modules
+# mt6750-connsys
+
+> **This fork: MediaTek MT6755 / MT6750 (Helio P10) on mainline Linux** (`CONSYS_PLAT=mt6755`,
+> the default), developed for the MT6750 tablet of
+> [linux-mt6750-tablet](https://github.com/pminervini/linux-mt6750-tablet): Wi-Fi (station, AP,
+> P2P, and [monitor mode](#monitor-mode-mt6755) from the firmware's own sniffer), Bluetooth and
+> the GPS core (`/dev/stpgps`, used by [opengps-mtk](https://github.com/pminervini/opengps-mtk)).
+> The rest of this README is the original MT6572 project's, extended with MT6755 sections.
+> No firmware is included: take `WIFI_RAM_CODE_6755`, `ROMv2_lm_patch_*` and `WMT_SOC.cfg` from
+> your own device's vendor partition.
+
+## Original project: mt6572-connsys-modules
 
 Out-of-tree Linux kernel modules and userspace tools that bring up the
 **MediaTek MT6572 on-die connectivity subsystem (CONSYS)** — the WiFi / BT /
