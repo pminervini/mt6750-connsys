@@ -2668,6 +2668,8 @@ static VOID nicRxCheckWakeupReason(P_SW_RFB_T prSwRfb)
 * @return (none)
 */
 /*----------------------------------------------------------------------------*/
+bool rxtapInspect(P_ADAPTER_T prAdapter, P_SW_RFB_T prSwRfb);	/* os/linux/gl_rxtap.c */
+
 VOID nicRxProcessRFBs(IN P_ADAPTER_T prAdapter)
 {
 	P_RX_CTRL_T prRxCtrl;
@@ -2695,6 +2697,10 @@ VOID nicRxProcessRFBs(IN P_ADAPTER_T prAdapter)
 			if (kalIsWakeupByWlan(prAdapter))
 				nicRxCheckWakeupReason(prSwRfb);
 #endif
+			if (rxtapInspect(prAdapter, prSwRfb)) {	/* sniffed 802.11 frame: monitor only */
+				nicRxReturnRFB(prAdapter, prSwRfb);
+				continue;
+			}
 			switch (prSwRfb->ucPacketType) {
 			case HIF_RX_PKT_TYPE_DATA:
 				nicRxProcessDataPacket(prAdapter, prSwRfb);

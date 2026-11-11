@@ -879,7 +879,16 @@ struct delayed_work sched_workq;
 static SUB_MODULE_HANDLER rSubModHandler[SUB_MODULE_NUM] = { {NULL} };
 #endif
 
+/* monitor interface (os/linux/gl_rxtap.c) */
+struct wireless_dev *rxtapAddIface(struct wiphy *wiphy, const char *name, unsigned char name_assign_type,
+				   enum nl80211_iftype type, struct vif_params *params);
+int rxtapDelIface(struct wiphy *wiphy, struct wireless_dev *wdev);
+int rxtapSetMonitorChannel(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_chan_def *cd);
+
 static struct cfg80211_ops mtk_wlan_ops = {
+	.add_virtual_intf = rxtapAddIface,
+	.del_virtual_intf = rxtapDelIface,
+	.set_monitor_channel = rxtapSetMonitorChannel,
 	.suspend = mtk_cfg80211_suspend,
 	.resume	= mtk_cfg80211_resume,
 	.change_virtual_intf = mtk_cfg80211_change_iface,
@@ -1621,7 +1630,8 @@ static void createWirelessDevice(void)
 	prWiphy->max_match_sets		= CFG_SCAN_SSID_MATCH_MAX_NUM;
 	prWiphy->max_sched_scan_ie_len	= CFG_CFG80211_IE_BUF_LEN;
 
-	prWiphy->interface_modes	= BIT(NL80211_IFTYPE_STATION) | BIT(NL80211_IFTYPE_ADHOC);
+	prWiphy->interface_modes	= BIT(NL80211_IFTYPE_STATION) | BIT(NL80211_IFTYPE_ADHOC) |
+					  BIT(NL80211_IFTYPE_MONITOR);	/* gl_rxtap.c */
 	prWiphy->bands[NL80211_BAND_2GHZ] = &mtk_band_2ghz;
 	/* always assign 5Ghz bands here, if the chip is not support 5Ghz,
 		bands[IEEE80211_BAND_5GHZ] will be assign to NULL */
@@ -1716,8 +1726,11 @@ free_wdev:
 	kfree(prWdev);
 }
 
+void rxtapShutdown(void);	/* gl_rxtap.c */
+
 static void destroyWirelessDevice(void)
 {
+	rxtapShutdown();	/* the monitor interface, before wlan0 and the wiphy */
 #if CFG_SUPPORT_PERSIST_NETDEV
 	unregister_netdev(gprWdev->netdev);
 	free_netdev(gprWdev->netdev);

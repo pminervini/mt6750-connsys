@@ -971,8 +971,12 @@ INT_32 procUninitProcFs(VOID)
 * \return N/A
 */
 /*----------------------------------------------------------------------------*/
+void rxtapInit(P_GLUE_INFO_T prGlueInfo, struct proc_dir_entry *root);	/* gl_rxtap.c */
+void rxtapExit(struct proc_dir_entry *root);
+
 INT_32 procRemoveProcfs(VOID)
 {
+	rxtapExit(gprProcRoot);
 	/* remove root directory (proc/net/wlan0) */
 	/* remove_proc_entry(pucDevName, init_net.proc_net); */
 	remove_proc_entry(PROC_WLAN_THERMO, gprProcRoot);
@@ -994,6 +998,7 @@ INT_32 procCreateFsEntry(P_GLUE_INFO_T prGlueInfo)
 #endif
 
 	prGlueInfo->pProcRoot = gprProcRoot;
+	rxtapInit(prGlueInfo, gprProcRoot);
 
 	prEntry = proc_create(PROC_WLAN_THERMO, 0664, gprProcRoot, &proc_fops);
 	if (prEntry == NULL) {

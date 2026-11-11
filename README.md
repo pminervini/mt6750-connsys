@@ -25,6 +25,7 @@ out-of-tree modules in the spirit of
 | WiFi P2P (Wi-Fi Direct) | working — `p2p0` next to an associated `wlan0`: discovery, provision discovery, GO negotiation, WPS PBC, persistent groups re-invoked from either side, service discovery both ways, as group owner or client, ~19-28 Mbit/s TCP both ways (see [AP / P2P](#ap--p2p)) |
 | FM receiver (`fmradio/` MT6627 driver → `/dev/fm`) | working — tune, scan/seek, RDS (PI, station name, radio text), audio to the headphones through the AFE's CONSYS I2S input, recording and streaming through the AFE's capture device; the headphone cable is the antenna |
 | GPS (`conn_soc/` → `/dev/stpgps`) | working — first fix in about 50 s from an empty aiding store, about 10 s warm, with the device's own stock positioning engine; holds the chip awake while open, alongside BT; `tools/gps-up.sh` serves it through gpsd (see [GPS](#gps)) |
+| WiFi monitor mode (MT6755) | working — `mon0` (cfg80211 monitor interface, radiotap) from the firmware's own sniffer; tcpdump / Wireshark / airodump-ng on one channel; channel changes and hopping through `tools/monitor/tablet-monitor` (~6-20 s per change); the station's traffic pauses while `mon0` is up; no injection (see [Monitor mode](#monitor-mode-mt6755)) |
 
 Verified on the Prestigio PAP5500 DUO; the Lenovo A369i carries the same
 silicon.
@@ -423,6 +424,54 @@ Known limits:
   GO negotiation from a peer never reach wpa_supplicant.
 - The vendor's P2P wireless-extensions ioctl interface is gone: current
   kernels never call `ndo_do_ioctl` for it, and nl80211 replaces it.
+
+## Monitor mode (MT6755)
+
+The MT6755 Wi-Fi firmware (`WIFI_RAM_CODE_6755`) has a sniffer that the gen2 driver
+never used: firmware command `0xfe` (`hemCmdSetMonitor` in its log strings), with the
+16-byte layout the later gen3 drivers call `CMD_ID_SET_MONITOR`: enable, band (1 = 2.4 GHz,
+2 = 5 GHz), primary channel, SCO (1 above, 3 below), channel width (0 = 20/40, 1 = 80 MHz),
+centre channels 1 and 2, 9 reserved bytes. The promiscuous bit of `CMD_ID_SET_RX_FILTER`
+does nothing on this firmware (every value is accepted, no foreign frame arrives).
+
+While the sniffer is on, the firmware hands every frame heard on that channel to the host
+as a DATA packet with the 802.11-header flag set, followed by a 9-byte trailer whose first
+byte is the legacy rate in 500 kb/s units (no FCS). `wlan/os/linux/gl_rxtap.c` turns them
+into a cfg80211 monitor interface:
+
+    iw dev wlan0 interface add mon0 type monitor
+    ip link set mon0 up            # sniffer on; down = off
+    tcpdump -i mon0 -w cap.pcap    # radiotap: flags, rate (legacy), channel, dBm
+
+- Associated `wlan0`: `mon0` listens on the AP's channel and the association survives,
+  but the firmware stops its normal RX path (no decryption, no 802.3 conversion), so the
+  station carries no incoming traffic until `mon0` goes down.
+- Channels: cfg80211 accepts a monitor channel only while `mon0` is the only interface up;
+  `echo "chan <n> [HT40+|HT40-|80MHz]" > /proc/net/wlan/rxtap` sets the channel for the next
+  `mon0` up.
+- Firmware limits, measured:
+  - every sniffer command (on, off, retune) keeps one HIF TX1 (TC4, command) buffer for good;
+    the pool holds 4 and only a Wi-Fi function restart refills it (at 0 the driver resets the
+    whole chip). The driver refuses on/retune below 3 free buffers and off below 2 (`-EBUSY`),
+    so the station always keeps the 2 it needs for EAPOL and "off" always stays possible;
+  - turning the Wi-Fi function off while sniffing, or within ~2 s of the "off" command,
+    asserts the firmware (whole-chip reset: Bluetooth and GPS too);
+  - Wi-Fi power-ups sometimes assert the CONSYS firmware (`patch/sys_patch_bin_t.c #5646
+    !RB_FULL`) or time out the STP link — also with the stock driver and no sniffer: 2 of 5
+    restarts 5 s apart failed twice shortly after boot, 0 of 25 later; it recovers by itself
+    (chip reset, ~25 s). Keep >= 15 s between a Wi-Fi power-on and the next power-off.
+- `tools/monitor/tablet-monitor` wraps this: `start` (AP channel) / `start CH` (station
+  off) / `channel CH` / `hop 1,6,11 DWELL DIR` / `stop` / `status`. It restarts the Wi-Fi
+  function before every channel change and on stop (waiting out the 15 s rule and retrying
+  through firmware resets), pauses the tablet's Wi-Fi watchdog, and arms an automatic stop
+  after `MON_MAX` (default 30 min). airodump-ng works on a fixed channel; its own hopping is
+  refused, use `hop` instead.
+- No injection (frames sent on `mon0` are dropped). `/proc/net/wlan/rxtap` also keeps an RX
+  census taken before the driver's filtering, raw-command and dump hooks (see the file header).
+- Locking: `wlanRemove()` holds the driver's halt lock and cfg80211 calls hold the RTNL and
+  then wait for it in `kalIoctl()`, so the Wi-Fi off / chip-reset path must never take the
+  RTNL (an early version did and deadlocked the system); `mon0` therefore survives Wi-Fi
+  restarts (no carrier until it is brought down and up) and is unregistered at module unload.
 
 ## Operational notes
 

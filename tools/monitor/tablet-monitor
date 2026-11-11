@@ -1,0 +1,160 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0
+# tablet-monitor: Wi-Fi monitor mode on the MT6755 CONSYS (wlan_gen2 with gl_rxtap.c).
+#
+#   tablet-monitor start            mon0 on the AP's channel; wlan0 stays associated, but its traffic
+#                                   pauses while mon0 is up (the firmware's sniffer replaces normal RX)
+#   tablet-monitor start CH [W]     station off, mon0 on channel CH (W: HT40+, HT40-, 80MHz)
+#   tablet-monitor channel CH [W]   move to another channel (station off); 6-20 s
+#   tablet-monitor hop CHS DWELL DIR  e.g. hop 1,6,11 30 /tmp/cap: DWELL (>= 15) s per channel, one pcap per
+#                                   visit in DIR, round after round until stopped (Ctrl-C / stop)
+#   tablet-monitor stop             mon0 removed, Wi-Fi function restarted, station and netwatch back
+#   tablet-monitor status
+# Capture on mon0 with tcpdump, tshark, Wireshark (over ssh) or airodump-ng (fixed channel: the
+# driver refuses airodump's own hopping, use "hop" instead). No injection.
+#
+# The firmware keeps one command buffer per sniffer command (the pool holds 4) until the Wi-Fi
+# function restarts, so this tool restarts it (~5 s) on stop and before every channel change, and
+# the driver refuses sniffer commands that would leave the station short (-EBUSY). The sniffer
+# must be off before the Wi-Fi function goes off: switching it off while sniffing makes the
+# firmware assert (whole-chip reset, Bluetooth and GPS included). The driver always keeps enough
+# buffers for that "off".
+# While monitoring, netwatch is paused; an automatic "stop" runs after MON_MAX (default 30min) so a
+# tablet reached over Wi-Fi comes back on its own. Run it from the USB link (ssh tablet-usb) when
+# the station is off.
+set -u
+MON=mon0 IF=wlan0 MAX=${MON_MAX:-30min} MIN_ON=15
+P=/proc/net/wlan/rxtap
+
+die() { echo "tablet-monitor: $*" >&2; exit 1; }
+log() { echo "tablet-monitor: $*"; echo "<5>tablet-monitor: $*" > /dev/kmsg 2>/dev/null; }
+[ "$(id -u)" = 0 ] || die "run as root"
+[ -e /sys/module/wlan_gen2/parameters/rxtap_trailer ] || die "the loaded wlan_gen2 has no monitor support"
+
+credits() { awk '/^tc_free/ {print $6}' $P; }
+
+# Seconds since the Wi-Fi function last powered on (boot, netwatch, chip reset or us), from the
+# kernel log; a large number if unknown.
+since_wifi_on() {
+	awk -v now="$(cut -d' ' -f1 /proc/uptime)" '
+		/turn on WIFI success/ { l = $0; sub(/^\[ */, "", l); sub(/\].*/, "", l); t = l }
+		END { print (t == "" ? 9999 : int(now - t)) }' <<-EOF
+	$(dmesg)
+	EOF
+}
+
+restart_wifi() {	# refills the firmware's command buffers; mon0 survives it
+	# Powering the function off within ~10 s of powering it on makes the firmware assert (whole-
+	# chip reset) - stock driver too: 2 of 5 restarts 5 s apart failed, 11 of 11 >= 12 s apart passed.
+	w=$(( MIN_ON - $(since_wifi_on) ))
+	[ $w -gt 0 ] && { log "waiting ${w}s: the Wi-Fi function powered on too recently"; sleep $w; }
+	log "restarting the Wi-Fi function"
+	echo 0 > /dev/wmtWifi 2>/dev/null; sleep 2
+	for try in 1 2; do
+		echo 1 > /dev/wmtWifi 2>/dev/null
+		for i in $(seq 40); do [ -e $P ] && [ -d /sys/class/net/$IF ] && break 2; sleep 1; done
+	done
+	sleep 3		# a sniffer command right after the restart can stall the firmware
+	[ -e $P ]
+}
+
+wait_wifi() {	# after a firmware reset: Wi-Fi comes back on its own within ~25 s
+	for i in $(seq 60); do [ -e $P ] && [ -d /sys/class/net/$IF ] && return 0; sleep 1; done
+	return 1
+}
+
+ensure_mon() {
+	iw dev $MON info >/dev/null 2>&1 || iw dev $IF interface add $MON type monitor
+}
+
+arm_stop() {
+	systemctl stop tablet-monitor-stop.timer 2>/dev/null
+	systemd-run --quiet --collect --unit=tablet-monitor-stop --on-active="$MAX" "$(readlink -f "$0")" stop \
+		&& echo "automatic stop in $MAX (MON_MAX=...; tablet-monitor stop to end now)"
+}
+
+station_off() {
+	systemctl stop tablet-netwatch wpa_supplicant@$IF
+	ip link set $IF down
+}
+
+try_channel() {	# CH [WIDTH]: fresh buffers, then the sniffer on that channel
+	if ip link show $MON 2>/dev/null | grep -q '[<,]UP[,>]'; then
+		ip link set $MON down	# sniffer off first: a Wi-Fi restart while sniffing crashes the chip,
+		sleep 2			# and so does one while the firmware is still switching it off
+	fi
+	restart_wifi || return 1
+	ensure_mon || return 1
+	ip link set $IF down
+	echo "chan $*" > $P || return 1	# cfg80211 takes monitor channels only while mon0 is up
+	ip link set $MON up
+}
+
+# Wi-Fi power-ups sometimes make the CONSYS firmware assert (RB_FULL in the WMT patch; the stock
+# driver too; they come in clusters, 0-2 in 5): wait for the automatic chip reset and retry.
+mon_on_channel() {
+	for try in 1 2 3 4; do
+		try_channel "$@" && { log "$MON on channel $*"; return 0; }
+		[ $try = 4 ] && break
+		log "firmware reset or refusal on channel $* (try $try): waiting for Wi-Fi, then retrying"
+		wait_wifi; sleep 20
+	done
+	die "could not start the sniffer on channel $* (see dmesg)"
+}
+
+[ -e $P ] || { log "waiting for Wi-Fi to come back"; wait_wifi || die "Wi-Fi is down ($P missing)"; }
+
+case "${1:-}" in
+start)
+	shift
+	systemctl stop tablet-netwatch
+	if [ $# -ge 1 ]; then
+		station_off
+		mon_on_channel "$@"
+	else
+		[ "$(credits)" -ge 3 ] || restart_wifi || wait_wifi || die "Wi-Fi did not come back"
+		for i in $(seq 30); do
+			[ "$(wpa_cli -i $IF status 2>/dev/null | sed -n 's/^wpa_state=//p')" = COMPLETED ] && break
+			sleep 1
+		done
+		ensure_mon || die "cannot add $MON"
+		ip link set $MON up || die "sniffer refused (see dmesg)"
+		log "$MON on the AP's channel (station traffic paused while it is up)"
+	fi
+	arm_stop ;;
+channel)
+	shift
+	[ $# -ge 1 ] || die "usage: tablet-monitor channel CH [HT40+|HT40-|80MHz]"
+	systemctl is-active -q wpa_supplicant@$IF && station_off
+	mon_on_channel "$@" ;;
+hop)
+	[ $# -eq 4 ] || die "usage: tablet-monitor hop CH,CH,... DWELL_SECONDS DIR"
+	chs=$(echo "$2" | tr , ' '); dwell=$3; dir=$4
+	mkdir -p "$dir"
+	systemctl stop tablet-netwatch
+	station_off
+	arm_stop
+	trap 'exit 0' INT TERM
+	while :; do
+		for ch in $chs; do
+			mon_on_channel "$ch"
+			timeout "$dwell" tcpdump -q -i $MON -w "$dir/ch$ch-$(date +%H%M%S).pcap" 2>/dev/null
+		done
+	done ;;
+stop)
+	systemctl stop tablet-monitor-stop.timer 2>/dev/null
+	ip link set $MON down 2>/dev/null && sleep 2
+	iw dev $MON del 2>/dev/null
+	restart_wifi || wait_wifi || log "Wi-Fi did not come back: netwatch will retry"
+	ip link set $IF up
+	systemctl start wpa_supplicant@$IF
+	networkctl reconfigure $IF >/dev/null 2>&1
+	systemctl start tablet-netwatch
+	log "monitor mode off, station and netwatch back" ;;
+status)
+	iw dev | grep -E 'Interface|type|channel'
+	grep -E '^(tc_free|sniffer)' $P | sed 's/^tc_free .* \([0-9]*\) [0-9]*$/free command buffers: \1 (4 after a Wi-Fi restart; 3 needed to start or retune)/' 
+	systemctl list-timers tablet-monitor-stop.timer --no-pager 2>/dev/null | sed -n 2p ;;
+*)
+	sed -n '3,25p' "$0"; exit 2 ;;
+esac
