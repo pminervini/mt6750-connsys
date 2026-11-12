@@ -8,6 +8,7 @@
  * prints RDS station name / radio text as they are decoded.
  *
  *   fmctl [MHz]            default 100.0
+ *   fmctl -m [MHz]         start muted with chip volume zero
  *   fmctl -d               dump the FM registers of a receiver that some
  *                          other process keeps powered (no power up/down)
  *
@@ -494,7 +495,9 @@ static int dump_regs(void)
 int main(int argc, char **argv)
 {
 	bool dump = argc > 1 && !strcmp(argv[1], "-d");
-	unsigned short freq = argc > 1 && !dump ? parse_mhz(argv[1]) : 10000;
+	bool muted_start = argc > 1 && !strcmp(argv[1], "-m");
+	int frequency_arg = muted_start ? 2 : 1;
+	unsigned short freq = argc > frequency_arg && !dump ? parse_mhz(argv[frequency_arg]) : 10000;
 	struct pollfd pfd[2] = {
 		{ .fd = STDIN_FILENO, .events = POLLIN },
 		{ .fd = -1, .events = POLLIN },
@@ -505,6 +508,7 @@ int main(int argc, char **argv)
 	size_t len = 0;
 	bool run = true;
 
+	user_mute = muted_start;
 	setvbuf(stdout, NULL, _IOLBF, 0);
 	fd = open("/dev/fm", O_RDWR);
 	if (fd < 0) {
@@ -515,6 +519,17 @@ int main(int argc, char **argv)
 		return dump_regs();
 	if (power_up(freq) < 0)
 		return 1;
+	if (muted_start) {
+		uint32_t mute = 1, volume = 0;
+
+		if (ioctl(fd, FM_IOCTL_MUTE, &mute) < 0 ||
+		    ioctl(fd, FM_IOCTL_SETVOL, &volume) < 0) {
+			perror("muted startup");
+			ioctl(fd, FM_IOCTL_POWERDOWN, &rx);
+			close(fd);
+			return 1;
+		}
+	}
 	if (ioctl(fd, FM_IOCTL_RDS_ONOFF, &rds_on) < 0)
 		fprintf(stderr, "rds on: %s\n", strerror(errno));
 	pfd[1].fd = open_jack();
@@ -531,6 +546,9 @@ int main(int argc, char **argv)
 			break;
 		if (r > 0 && (pfd[1].revents & POLLIN))
 			read_jack(pfd[1].fd);
+		/* A vanished controller must not leave the receiver powered forever. */
+		if (r > 0 && (pfd[0].revents & (POLLHUP | POLLERR | POLLNVAL)))
+			break;
 		/* one byte per wakeup: no stdio buffer hiding queued input from poll() */
 		if (r > 0 && (pfd[0].revents & POLLIN)) {
 			if (read(STDIN_FILENO, &c, 1) != 1)

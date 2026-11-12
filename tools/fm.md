@@ -1,5 +1,62 @@
 # FM radio runbook
 
+## MT6755 / MT6750: receiver and RDS
+
+Verified on an MT6750/k50v1 tablet with an MT6625 RF companion, native Debian,
+and Linux 7.3.1: repeated receiver power-up, tuning/retuning, RDS programme
+identification (PI), station name (PS), and changing RadioText (RT). Tests kept
+chip volume at zero and independently checked that the analogue DAC/headphone
+path and speaker-amplifier controls stayed off. This establishes receiver/RDS
+support, not broadcast PCM capture or audible playback. Antenna wiring and
+reboot persistence have not been tested; automatic FM module loading is not set up.
+
+Build against the prepared tree/output matching the running kernel, including
+its configuration and `Module.symvers`. From the repository root:
+
+```sh
+make KDIR=/path/to/matching/kernel-output CONSYS_PLAT=mt6755
+aarch64-linux-gnu-gcc -Wall -Wextra -O2 -static -I fmradio/inc -o tools/fmctl tools/fmctl.c
+```
+
+Use the matching kernel ABI, not just an equal release string. This platform
+selects `MT6625_FM` from the shared MT6627 chip library and skips the legacy
+MT6572 WMT audio-GPIO callback. No extra kernel patch was needed for this
+receiver milestone. The MT6572 configuration remains selectable with
+`CONSYS_PLAT=mt6572`; it was compile-checked, not retested on MT6572 hardware.
+
+Copy `mt6627_fm_v1_patch.bin` and `mt6627_fm_v1_coeff.bin` from your own device's
+stock `/vendor/firmware/` into `/lib/firmware/` with the same names. These files
+are proprietary and are not redistributed here. Do not substitute another
+unit's calibration or publish firmware, NVRAM, identifiers, or raw device logs.
+
+With the existing CONSYS/WMT stack already running, install the built module
+and controller on the tablet, then run there:
+
+```sh
+# If not already loaded; paths below are installation examples:
+sudo insmod /root/connsys/mtk_fm_drv.ko
+sudo /usr/local/bin/fmctl -m <MHz>
+```
+
+Replace `<MHz>` with a locally receivable FM frequency. Keep stdin and `/dev/fm`
+open while waiting for RDS: `t <MHz>` retunes, `r` reads signal, `i` hardware
+information, `b` decoded-group counts, and `q` powers down and exits. RDS prints
+as `rds PI`, `rds PS`, and `rds RT`; text availability depends on the broadcast
+and reception. Do not unload shared WMT.
+
+`-m` requests receiver mute and chip volume zero immediately after power-up;
+it is not an analogue-output interlock. Before starting a silent test, ensure
+the DAC/headphone route and amplifiers are off and leave them off. Do not run
+playback tools, `u`, or volume-increase commands. Invocation without `-m`
+retains the original unmuted behaviour.
+
+The MT6572 ALSA helpers below (`fm-up.sh`, `fm-record.sh`, `amixer`, `arecord`)
+are not validated MT6755 workflows: this tablet has no ALSA FM route. Digital
+capture/AFE integration remains unfinished. Rebuild after kernel ABI changes;
+load the module manually on a later boot until persistence is implemented/tested.
+
+## MT6572: listening, recording, and streaming
+
 **VERIFIED WORKING** on the Prestigio PAP5500 DUO: listening through the
 headphones or the speaker, seek and scan, RDS (PI, station name, radio
 text), recording to WAV and streaming it over the network.

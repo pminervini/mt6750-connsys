@@ -1,6 +1,13 @@
-# MT6572 CONSYS FM radio (MT6627 RF front-end) — mtk_fm_drv.ko
+# CONSYS FM radio (shared MT6625/MT6627 chip library) — mtk_fm_drv.ko
 
-ccflags-y += -DMT6627_FM -DCFG_FM_CONNAC2=0 -DWMT_IDC_SUPPORT=0
+CONSYS_PLAT ?= mt6755
+ifeq ($(CONSYS_PLAT),mt6755)
+ccflags-y += -DMT6625_FM -DCONSYS_PLAT_MT6755
+else
+ccflags-y += -DMT6627_FM
+endif
+
+ccflags-y += -DCFG_FM_CONNAC2=0 -DWMT_IDC_SUPPORT=0
 ccflags-y += -I$(src)/inc -I$(src)/plat/inc -I$(src)/chips/mt6627/inc
 ccflags-y += -I$(src)/../conn_soc/include \
 	-I$(src)/../conn_soc/linux/include \

@@ -824,12 +824,15 @@ static signed int mt6627_PowerUp(unsigned short *chip_id, unsigned short *device
 		WCN_DBG(FM_ALT | CHIP, "mt6627_pwrup_clock_on failed\n");
 		return ret;
 	}
+#ifndef CONSYS_PLAT_MT6755
+	/* The legacy WMT AIF callback programs MT6572 GPIO register 0x80050078. */
 	/* CONSYS audio interface to FM digital: I2S out to the AFE */
 	ret = mtk_wcn_cmb_stub_audio_ctrl(CMB_STUB_AIF_2);
 	if (ret) {
 		WCN_DBG(FM_ALT | CHIP, "FM I2S audio interface failed: %d\n", ret);
 		return ret;
 	}
+#endif
 
 	/* Wholechip FM Power Up: step 2, read HW version */
 	fm_reg_read(0x62, &tmp_reg);
@@ -911,8 +914,10 @@ static signed int mt6627_PowerDown(void)
 
 	/* mt6627_RampDown(); */
 
+#ifndef CONSYS_PLAT_MT6755
 	/* audio interface back to idle (BT PCM off, no FM digital) */
 	mtk_wcn_cmb_stub_audio_ctrl(CMB_STUB_AIF_0);
+#endif
 	/* pwer up sequence 0425 */
 	/* A0:set audio output I2X Rx mode: */
 	fm_host_reg_read(0x80101054, &tem);
@@ -1091,7 +1096,7 @@ static bool mt6627_SetFreq(unsigned short freq)
 			if (ret)
 				WCN_DBG(FM_ERR | CHIP, "set freq rd 0x80101054 failed\n");
 
-			reg_val &= 0x7FFF;
+			reg_val &= ~0x8000U;
 			ret = fm_host_reg_write(0x80101054, reg_val);
 			if (ret)
 				WCN_DBG(FM_ERR | CHIP, "set freq wr 0x80101054 failed\n");

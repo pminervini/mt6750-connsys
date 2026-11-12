@@ -4,10 +4,13 @@
 > the default), developed for the MT6750 tablet of
 > [linux-mt6750-tablet](https://github.com/pminervini/linux-mt6750-tablet): Wi-Fi (station, plus
 > [monitor mode](#monitor-mode-mt6755) from the firmware's own sniffer), Bluetooth and
-> the GPS core (`/dev/stpgps`, used by [opengps-mtk](https://github.com/pminervini/opengps-mtk)).
+> the GPS core (`/dev/stpgps`, used by [opengps-mtk](https://github.com/pminervini/opengps-mtk)),
+> and FM receiver tuning/RDS (`/dev/fm`, MT6625; [MT6755 runbook](tools/fm.md#mt6755--mt6750-receiver-and-rds)).
+> FM audio capture/playback and reboot persistence are not verified on this tablet.
 > The rest of this README is the original MT6572 project's, extended with MT6755 sections.
 > No firmware is included: take `WIFI_RAM_CODE_6755`, `ROMv2_lm_patch_*` and `WMT_SOC.cfg` from
-> your own device's vendor partition.
+> your own device's vendor partition. FM additionally needs the matching stock
+> `mt6627_fm_v1_{patch,coeff}.bin` pair in `/lib/firmware/`; these are not included.
 
 ## Original project: mt6572-connsys-modules
 
@@ -23,6 +26,12 @@ out-of-tree modules in the spirit of
 [mt8768-modules](https://codeberg.org/lowendlibre/mt8768-modules).
 
 ## Status
+
+Unless marked MT6755, the following results are from the original MT6572 project.
+MT6755 FM tuning/retuning and RDS PI/PS/RadioText were verified under native Debian
+on Linux 7.3.1 with muted, volume-zero reception and analogue outputs off.
+Digital capture, playback, antenna wiring, and automatic loading after reboot
+remain unverified. See the platform-specific runbook before using FM helpers.
 
 | Function | State |
 |---|---|
