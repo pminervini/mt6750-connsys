@@ -51,9 +51,15 @@ playback tools, `u`, or volume-increase commands. Invocation without `-m`
 retains the original unmuted behaviour.
 
 The MT6572 ALSA helpers below (`fm-up.sh`, `fm-record.sh`, `amixer`, `arecord`)
-are not validated MT6755 workflows: this tablet has no ALSA FM route. Digital
-capture/AFE integration remains unfinished. Rebuild after kernel ABI changes;
-load the module manually on a later boot until persistence is implemented/tested.
+are not validated MT6755 workflows. A separate hardware-backed MT6755 ASoC
+candidate now has verified idle card/endpoint/mixer enumeration and ordinary
+unload/reload; its digital FM DMA and genuine broadcast PCM remain unverified.
+The guarded deployment keeps `allow_playback=0 allow_capture=0`, so ambient RF/RDS
+continues without opening PCM. Enabling digital capture is a separate approved
+load/test, not a consequence of finding an endpoint. See the
+[ASoC source and acceptance limits](https://github.com/pminervini/linux-mt6750-tablet/blob/265546b0cad721e97c06e37b87bbdd2976a99da7/tools/audio/README.md).
+No receiver code changed for this integration. Rebuild after kernel ABI changes;
+load the receiver module manually on a later boot until persistence is tested.
 
 ## MT6572: listening, recording, and streaming
 
