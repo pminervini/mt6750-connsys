@@ -7,7 +7,9 @@ and Linux 7.3.1: repeated receiver power-up, tuning/retuning, RDS programme
 identification (PI), station name (PS), and changing RadioText (RT). Tests kept
 chip volume at zero and independently checked that the analogue DAC/headphone
 path and speaker-amplifier controls stayed off. This establishes receiver/RDS
-support, not broadcast PCM capture or audible playback. Antenna wiring and
+support. Subsequent bounded digital PCM/DMA tests passed through the separate
+MT6755 ASoC driver with analogue outputs independently off; audible playback
+remains unaccepted. Antenna wiring and
 reboot persistence have not been tested; automatic FM module loading is not set up.
 
 Build against the prepared tree/output matching the running kernel, including
@@ -50,16 +52,20 @@ the DAC/headphone route and amplifiers are off and leave them off. Do not run
 playback tools, `u`, or volume-increase commands. Invocation without `-m`
 retains the original unmuted behaviour.
 
-The MT6572 ALSA helpers below (`fm-up.sh`, `fm-record.sh`, `amixer`, `arecord`)
-are not validated MT6755 workflows. A separate hardware-backed MT6755 ASoC
-candidate now has verified idle card/endpoint/mixer enumeration and ordinary
-unload/reload; its digital FM DMA and genuine broadcast PCM remain unverified.
-The guarded deployment keeps `allow_playback=0 allow_capture=0`, so ambient RF/RDS
-continues without opening PCM. Enabling digital capture is a separate approved
-load/test, not a consequence of finding an endpoint. See the
-[ASoC source and acceptance limits](https://github.com/pminervini/linux-mt6750-tablet/blob/265546b0cad721e97c06e37b87bbdd2976a99da7/tools/audio/README.md).
-No receiver code changed for this integration. Rebuild after kernel ABI changes;
-load the receiver module manually on a later boot until persistence is tested.
+The MT6572 ALSA helpers below remain specific to that platform. MT6755 digital
+capture uses the separate hardware-backed ASoC route: CONNSYS I2S -> ASRC -> AWB,
+stereo S16_LE at 48 kHz. Its accepted policy is `legacy_quiesced=1 allow_capture=1
+allow_playback=0`; defaults still deny capture. Changing AWB DMA, receiver/gain
+reversals, natural recorder close, and reopen established broadcast provenance.
+Receiver mute/zero gain can yield near-zero DMA despite a working route. Any
+approved nonzero-gain/unmuted digital dwell must independently keep codec/DAC/
+amplifier enables off, verify receiver readbacks, and remute/zero on cleanup.
+This is not microphone or speaker/headphone acceptance. See the
+[ASoC source and acceptance limits](https://github.com/pminervini/linux-mt6750-tablet/blob/main/tools/audio/README.md).
+
+No CONNSYS receiver code changed for the PCM milestone. Rebuild after kernel ABI
+changes; FM activation remains current-boot-only and its reboot persistence is
+untested. Do not unload shared WMT.
 
 ## MT6572: listening, recording, and streaming
 
