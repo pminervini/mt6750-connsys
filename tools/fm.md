@@ -9,8 +9,9 @@ chip volume at zero and independently checked that the analogue DAC/headphone
 path and speaker-amplifier controls stayed off. This establishes receiver/RDS
 support. Subsequent bounded digital PCM/DMA tests passed through the separate
 MT6755 ASoC driver with analogue outputs independently off; audible playback
-remains unaccepted. Antenna wiring and
-reboot persistence have not been tested; automatic FM module loading is not set up.
+remains unaccepted. Guarded platform startup passed one controlled reboot on
+2026-11-14, followed by real PCM/DMA and natural recorder shutdown. Antenna wiring,
+repeated-boot coverage, and long-duration stability remain unverified.
 
 Build against the prepared tree/output matching the running kernel, including
 its configuration and `Module.symvers`. From the repository root:
@@ -63,9 +64,13 @@ amplifier enables off, verify receiver readbacks, and remute/zero on cleanup.
 This is not microphone or speaker/headphone acceptance. See the
 [ASoC source and acceptance limits](https://github.com/pminervini/linux-mt6750-tablet/blob/main/tools/audio/README.md).
 
-No CONNSYS receiver code changed for the PCM milestone. Rebuild after kernel ABI
-changes; FM activation remains current-boot-only and its reboot persistence is
-untested. Do not unload shared WMT.
+No CONNSYS receiver code changed for the PCM/startup milestones. The platform
+[guarded startup templates](https://github.com/pminervini/linux-mt6750-tablet/blob/main/tools/audio/README.md#guarded-boot-availability)
+check qualified kernel/configuration, hashes, GNU notes, capture-only policy,
+and analogue-off state under the existing audio lock; they neither tune nor open
+PCM. Keep rendered guards/settings private and rebuild after kernel ABI changes.
+Do not unload shared WMT. The normal ambient schedule remains unchanged; its
+six-hour automatic appearance was not awaited in the reboot check.
 
 ## MT6572: listening, recording, and streaming
 
